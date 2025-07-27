@@ -1,0 +1,24 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OkxHedgeSync", "OkxHedgeSync.csproj", "{97EADEE4-680B-BA73-6CC2-D816378326DC}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{97EADEE4-680B-BA73-6CC2-D816378326DC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{97EADEE4-680B-BA73-6CC2-D816378326DC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{97EADEE4-680B-BA73-6CC2-D816378326DC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{97EADEE4-680B-BA73-6CC2-D816378326DC}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {5E36E783-A746-4489-9FB4-8875538CFA85}
+	EndGlobalSection
+EndGlobal
