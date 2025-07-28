@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.WebSockets;
 using System.Text;
@@ -9,9 +10,20 @@ using System.Linq;
 
 public static class OkxSpotPriceWebSocket
 {
-    public static async Task GetMultiSpotPriceWebSocket(string[] instIds)
+    /// <summary>
+    /// 公共字典，存储每个instId的最新现价（last）
+    /// </summary>
+    public static ConcurrentDictionary<string, string> LastPrices { get; } = new();
+
+    /// <summary>
+    /// 启动WebSocket监听，持续更新LastPrices字典
+    /// </summary>
+    /// <param name="instIds">币对数组</param>
+    /// <param name="proxyUrl">可选代理地址，默认127.0.0.1:29290</param>
+    /// <returns></returns>
+    public static async Task StartSpotPriceListenerAsync(string[] instIds, string? proxyUrl = "http://127.0.0.1:29290")
     {
-        var proxy = new WebProxy("http://127.0.0.1:29290")
+        var proxy = new WebProxy(proxyUrl)
         {
             BypassProxyOnLocal = false
         };
@@ -60,7 +72,11 @@ public static class OkxSpotPriceWebSocket
                             {
                                 var instId = instIdElem.GetString();
                                 var last = lastElem.GetString();
-                                Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] {instId}: {last} USDT");
+                                if (!string.IsNullOrEmpty(instId) && !string.IsNullOrEmpty(last))
+                                {
+                                    LastPrices[instId] = last;
+                                    Console.WriteLine($"币对: {instId}, 最新现价: {last}");
+                                }
                             }
                         }
                     }
@@ -75,5 +91,14 @@ public static class OkxSpotPriceWebSocket
         {
             Console.WriteLine($"WebSocket错误: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// 获取某个币对的最新现价（如未获取到则返回null）
+    /// </summary>
+    public static string? GetLastPrice(string instId)
+    {
+        LastPrices.TryGetValue(instId, out var price);
+        return price;
     }
 }

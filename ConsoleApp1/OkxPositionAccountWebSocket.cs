@@ -7,11 +7,11 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
-using System.Collections.Concurrent; // 添加此行
+using System.Collections.Concurrent; 
 
 class OkxPositionAccountWebSocket
 {
-    // 新增：公开静态字典用于存储持仓数据
+    // 公开静态字典用于存储持仓数据
     public static ConcurrentDictionary<string, decimal> PositionDict { get; } = new();
 
     // 生成OKX签名
@@ -24,9 +24,6 @@ class OkxPositionAccountWebSocket
         return Convert.ToBase64String(hash);
     }
 
-    /// <summary>
-    /// 检查账户持仓WebSocket，只输出指定币种
-    /// </summary>
     public static async Task CheckAccountPositionsWebSocket(
         string apiKey,
         string secretKey,
