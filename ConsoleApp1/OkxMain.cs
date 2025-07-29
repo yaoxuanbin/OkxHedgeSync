@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 
@@ -11,59 +12,95 @@ class OKxMain
 
     static async Task Main()
     {
-        // 读取配置文件
+        // 读取主配置
         var configText = await File.ReadAllTextAsync("OkxSettings.json");
         var settings = JsonSerializer.Deserialize<OkxSettings>(configText)!;
 
+        // 读取交易对配置
+        var tradingPairsJson = await File.ReadAllTextAsync("TradingPairs.json");
+        var tradingPairs = JsonSerializer.Deserialize<List<TradingPairConfig>>(tradingPairsJson)!;
+
         Console.WriteLine("启动OKX交易API（支持模拟盘/实盘，强制代理 127.0.0.1:29290）...");
 
-        // 读取每个WebSocket的日志配置
+        // 读取WebSocket日志配置
         var spotLog = settings.WebSocketLogs.SpotPrice;
         var positionLog = settings.WebSocketLogs.PositionAccount;
         var orderBookLog = settings.WebSocketLogs.OrderBook;
 
+        // 整理所有币对（现货和合约）去重
+        var allInstIds = tradingPairs
+            .SelectMany(p => new[] { p.Spot, p.Swap })
+            .Distinct()
+            .ToArray();
+
+        // 盘口档位（取所有交易对最大SellLevel，保证盘口WebSocket能满足所有对的需求）
+        int maxSellLevel = tradingPairs.Max(p => p.SellLevel);
+        int maxBuyLevel = maxSellLevel; // 假设买档和卖档一致
+
+        var orderBookLevels = new Dictionary<string, int>
+        {
+            { "buy", maxBuyLevel },
+            { "sell", maxSellLevel }
+        };
+
         // 1. 行情WebSocket
         var spotPriceWs = new OkxSpotPriceWebSocket(
-                   settings.IsSimulated,
-                   settings.ProxyUrl,
-                   spotLog.EnableLog,
-                   spotLog.LogToFile,
-                   spotLog.LogFilePath,
-                   ParseLogLevel(spotLog.MinLevel), // 使用配置文件中的MinLevel
-                   ParseLogLevel(spotLog.MaxLevel)  // 使用配置文件中的MaxLevel
+            settings.IsSimulated,
+            settings.ProxyUrl,
+            spotLog.EnableLog,
+            spotLog.LogToFile,
+            spotLog.LogFilePath,
+            ParseLogLevel(spotLog.MinLevel),
+            ParseLogLevel(spotLog.MaxLevel)
         );
-        var priceTask = spotPriceWs.StartSpotPriceListenerAsync(new[] { "DOGE-USDT", "DOGE-USDT-SWAP" });
+        var priceTask = spotPriceWs.StartSpotPriceListenerAsync(allInstIds);
 
-        var positionWs = new OkxPositionAccountWebSocket(
-             settings.IsSimulated,
-             settings.ProxyUrl,
-             positionLog.EnableLog,
-             positionLog.LogToFile,
-             positionLog.LogFilePath,
-             ParseLogLevel(positionLog.MinLevel), // 使用配置文件中的MinLevel
-             ParseLogLevel(positionLog.MaxLevel)  // 使用配置文件中的MaxLevel
-         );
-        var positionTask = positionWs.CheckAccountPositionsWebSocket(
-                    settings.ApiKey,
-                    settings.SecretKey,
-                    settings.Passphrase,
-                    new[] { "DOGE-USDT", "DOGE-USDT-SWAP" }
-        );
-        // 3. 盘口WebSocket
+        // 2. 盘口WebSocket
         var orderBookWs = new OkxOrderBookWebSocket(
-             settings.IsSimulated,
-             settings.ProxyUrl,
-             orderBookLog.EnableLog,
-             orderBookLog.LogToFile,
-             orderBookLog.LogFilePath,
-             ParseLogLevel(orderBookLog.MinLevel), // 使用配置文件中的MinLevel
-             ParseLogLevel(orderBookLog.MaxLevel)  // 使用配置文件中的MaxLevel
-         );
+            settings.IsSimulated,
+            settings.ProxyUrl,
+            orderBookLog.EnableLog,
+            orderBookLog.LogToFile,
+            orderBookLog.LogFilePath,
+            ParseLogLevel(orderBookLog.MinLevel),
+            ParseLogLevel(orderBookLog.MaxLevel)
+        );
         var orderBookTask = orderBookWs.StartOrderBookListenerAsync(
-            new[] { "DOGE-USDT", "BTC-USDT" },
-            new Dictionary<string, int> { { "buy", 2 }, { "sell", 2 } }
+            allInstIds,
+            orderBookLevels
         );
 
-        await Task.WhenAll(priceTask, positionTask, orderBookTask);
+        // 3. 账户/持仓WebSocket
+        var positionWs = new OkxPositionAccountWebSocket(
+            settings.IsSimulated,
+            settings.ProxyUrl,
+            positionLog.EnableLog,
+            positionLog.LogToFile,
+            positionLog.LogFilePath,
+            ParseLogLevel(positionLog.MinLevel),
+            ParseLogLevel(positionLog.MaxLevel)
+        );
+        var positionTask = positionWs.CheckAccountPositionsWebSocket(
+            settings.ApiKey,
+            settings.SecretKey,
+            settings.Passphrase,
+            allInstIds
+        );
+
+        // 4. 主交易逻辑
+        ITradeClient tradeClient = new OkxTradeClient(
+            settings.ApiKey,
+            settings.SecretKey,
+            settings.Passphrase,
+            settings.IsSimulated,
+            settings.ProxyUrl
+        );
+
+        IPositionClient positionClient = positionWs;
+
+        var trader = new OkxMainTrader(tradingPairs, tradeClient, positionClient);
+        var tradeTask = trader.RunAsync();
+
+        await Task.WhenAll(priceTask, orderBookTask, positionTask, tradeTask);
     }
 }

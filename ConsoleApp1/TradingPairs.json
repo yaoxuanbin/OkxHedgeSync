@@ -1,0 +1,47 @@
+[
+  {
+    "Spot": "DOGE-USDT",
+    "Swap": "DOGE-USDT-SWAP",
+    "OpenThreshold": 0.008,
+    "CloseThreshold": -0.002,
+    "SellLevel": 2,
+    "SpotQuantity": 100,
+    "SwapQuantity": 0.1
+  },
+  {
+    "Spot": "TRX-USDT",
+    "Swap": "TRX-USDT-SWAP",
+    "OpenThreshold": 0.008,
+    "CloseThreshold": -0.002,
+    "SellLevel": 2,
+    "SpotQuantity": 100,
+    "SwapQuantity": 0.1
+  },
+  {
+    "Spot": "OP-USDT",
+    "Swap": "OP-USDT-SWAP",
+    "OpenThreshold": 0.008,
+    "CloseThreshold": -0.002,
+    "SellLevel": 3,
+    "SpotQuantity": 100,
+    "SwapQuantity": 100
+  },
+  {
+    "Spot": "XLM-USDT",
+    "Swap": "XLM-USDT-SWAP",
+    "OpenThreshold": 0.008,
+    "CloseThreshold": -0.002,
+    "SellLevel": 2,
+    "SpotQuantity": 100,
+    "SwapQuantity": 1
+  },
+  {
+    "Spot": "ADA-USDT",
+    "Swap": "ADA-USDT-SWAP",
+    "OpenThreshold": 0.008,
+    "CloseThreshold": -0.002,
+    "SellLevel": 2,
+    "SpotQuantity": 100,
+    "SwapQuantity": 1
+  }
+]

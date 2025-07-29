@@ -10,10 +10,32 @@ using System.IO;
 /// <summary>
 /// OKX交易客户端，支持模拟盘和实盘下单（现货/合约）
 /// </summary>
-public class OkxTradeClient : BaseAPI
+public class OkxTradeClient : BaseAPI, ITradeClient
 {
     public OkxTradeClient(string apiKey, string secretKey, string passphrase, bool isSimulated = false, string? proxyUrl = null)
         : base(apiKey, secretKey, passphrase, isSimulated, proxyUrl) { }
+
+    // 实现 ITradeClient 接口方法
+    public async Task BuySpotAsync(string instId, double quantity, double price)
+    {
+        // price 参数未用，接口要求保留
+        await PlaceSpotMarketBuyOrderAsync(instId, (decimal)quantity);
+    }
+
+    public async Task SellSpotAsync(string instId, double quantity, double price)
+    {
+        await PlaceSpotMarketSellOrderAsync(instId, (decimal)quantity);
+    }
+
+    public async Task BuySwapAsync(string instId, double quantity, double price)
+    {
+        await PlaceSwapMarketBuyOrderAsync(instId, (decimal)quantity, "long");
+    }
+
+    public async Task SellSwapAsync(string instId, double quantity, double price)
+    {
+        await PlaceSwapMarketSellOrderAsync(instId, (decimal)quantity, "short");
+    }
 
     /// <summary>
     /// 下现货市价买单

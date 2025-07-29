@@ -7,7 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 
-public class OkxPositionAccountWebSocket : BaseWebSocket<decimal>
+public class OkxPositionAccountWebSocket : BaseWebSocket<decimal>, IPositionClient
 {
     public OkxPositionAccountWebSocket(
         bool isSimulated = false,
@@ -124,7 +124,8 @@ public class OkxPositionAccountWebSocket : BaseWebSocket<decimal>
 
                                         if (decimal.TryParse(posSz, out var posValue))
                                         {
-                                            SharedDict[$"{instId}_{posSide}"] = posValue;
+                                            // 存储格式: "BTC-USDT-SWAP_long" 或 "BTC-USDT-SWAP_short"
+                                            SharedDict[$"{instId}_{posSide?.ToLower()}"] = posValue;
                                         }
                                     }
                                 }
@@ -155,6 +156,10 @@ public class OkxPositionAccountWebSocket : BaseWebSocket<decimal>
                                             {
                                                 var availBal = detail.GetProperty("availBal").GetString();
                                                 Log($"现货资产: {ccy} 可用余额: {availBal}", LogLevel.Info);
+                                                if (decimal.TryParse(availBal, out var balValue))
+                                                {
+                                                    SharedDict[ccy] = balValue;
+                                                }
                                             }
                                         }
                                     }
@@ -186,5 +191,26 @@ public class OkxPositionAccountWebSocket : BaseWebSocket<decimal>
         {
             Log($"WebSocket错误: {ex.Message}", LogLevel.Error);
         }
+    }
+
+    // 实现 IPositionClient 接口
+    public Task<double> GetSpotPositionAsync(string instId)
+    {
+        // 现货币种余额，instId如"BTC-USDT"，取"BTC"
+        var ccy = instId.Split('-')[0];
+        if (SharedDict.TryGetValue(ccy, out var value))
+            return Task.FromResult((double)value);
+        return Task.FromResult(0.0);
+    }
+
+    public Task<double> GetSwapPositionAsync(string instId)
+    {
+        // 合约持仓，取long/short最大值
+        double max = 0.0;
+        if (SharedDict.TryGetValue($"{instId}_long", out var longValue))
+            max = Math.Max(max, (double)longValue);
+        if (SharedDict.TryGetValue($"{instId}_short", out var shortValue))
+            max = Math.Max(max, (double)shortValue);
+        return Task.FromResult(max);
     }
 }
