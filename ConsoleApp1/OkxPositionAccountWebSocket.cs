@@ -7,10 +7,16 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 
-public class OkxPositionAccountWebSocket : WebSocketBase<decimal>
+public class OkxPositionAccountWebSocket : BaseWebSocket<decimal>
 {
-    public OkxPositionAccountWebSocket(bool isSimulated = false, string? proxyUrl = null)
-        : base(isSimulated, proxyUrl) { }
+    public OkxPositionAccountWebSocket(
+            bool isSimulated = false,
+            string? proxyUrl = null,
+            bool enableLog = false,
+            bool logToFile = false,
+            string? logFilePath = null)
+            : base(isSimulated, proxyUrl, enableLog, logToFile, logFilePath) { }
+
 
     private static string Sign(string secret, string prehash)
     {

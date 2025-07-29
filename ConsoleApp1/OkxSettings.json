@@ -3,5 +3,22 @@
   "SecretKey": "B4734E2885D1B71136E4732B394A3C3D",
   "Passphrase": "Ww@123456",
   "IsSimulated": true,
-  "ProxyUrl": "http://127.0.0.1:29290"
+  "ProxyUrl": "http://127.0.0.1:29290",
+  "WebSocketLogs": {
+    "SpotPrice": {
+      "EnableLog": true,
+      "LogToFile": true,
+      "LogFilePath": "spot_price.log"
+    },
+    "PositionAccount": {
+      "EnableLog": true,
+      "LogToFile": true,
+      "LogFilePath": "position_account.log"
+    },
+    "OrderBook": {
+      "EnableLog": true,
+      "LogToFile": true,
+      "LogFilePath": "order_book.log"
+    }
+  }
 }

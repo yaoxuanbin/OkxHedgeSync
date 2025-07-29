@@ -6,10 +6,16 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
-public class OkxSpotPriceWebSocket : WebSocketBase<string>
+public class OkxSpotPriceWebSocket : BaseWebSocket<string>
 {
-    public OkxSpotPriceWebSocket(bool isSimulated = false, string? proxyUrl = null)
-        : base(isSimulated, proxyUrl) { }
+    public OkxSpotPriceWebSocket(
+        bool isSimulated = false,
+        string? proxyUrl = null,
+        bool enableLog = false,
+        bool logToFile = false,
+        string? logFilePath = null)
+        : base(isSimulated, proxyUrl, enableLog, logToFile, logFilePath) { }
+
 
     /// <summary>
     /// 启动WebSocket监听，持续更新SharedDict字典

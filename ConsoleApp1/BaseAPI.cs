@@ -1,7 +1,7 @@
 using System.Net;
 using System.Net.Http;
 
-public abstract class ApiBase
+public abstract class BaseApi
 {
     protected readonly string ApiKey;
     protected readonly string SecretKey;
@@ -10,11 +10,11 @@ public abstract class ApiBase
     protected readonly string BaseUrl = "https://www.okx.com";
 
     /// <summary>
-    /// ÊÇ·ñÎªÄ£ÄâÅÌ
+    /// ??¡¤?????????
     /// </summary>
     protected bool IsSimulated { get; }
 
-    protected ApiBase(string apiKey, string secretKey, string passphrase, bool isSimulated = false, string? proxyUrl = null)
+    protected BaseApi(string apiKey, string secretKey, string passphrase, bool isSimulated = false, string? proxyUrl = null)
     {
         ApiKey = apiKey;
         SecretKey = secretKey;

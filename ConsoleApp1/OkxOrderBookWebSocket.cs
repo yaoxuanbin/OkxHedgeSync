@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net.WebSockets;
 using System.Text;
@@ -7,13 +8,26 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
-/// <summary>
-/// 通过WebSocket订阅OKX盘口五档数据，支持指定买卖档位、模拟盘参数、多个instId，并持续更新到公共字典
-/// </summary>
-public class OkxOrderBookWebSocket : WebSocketBase<OrderBookLevel>
+public class OkxOrderBookWebSocket : BaseWebSocket<OrderBookLevel>
 {
-    public OkxOrderBookWebSocket(bool isSimulated = false, string? proxyUrl = null)
-        : base(isSimulated, proxyUrl) { }
+    public OkxOrderBookWebSocket(
+            bool isSimulated = false,
+            string? proxyUrl = null,
+            bool enableLog = false,
+            bool logToFile = false,
+            string? logFilePath = null)
+            : base(isSimulated, proxyUrl, enableLog, logToFile, logFilePath) { }
+
+    protected override void Log(string message)
+    {
+        if (EnableLog)
+        {
+            // 打印到控制台
+            Console.WriteLine(message);
+            // 追加到本地日志文件
+            File.AppendAllText("orderbook.log", $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}{Environment.NewLine}");
+        }
+    }
 
     /// <summary>
     /// 持续订阅并实时更新指定币对的盘口指定买卖档位数据
@@ -94,27 +108,24 @@ public class OkxOrderBookWebSocket : WebSocketBase<OrderBookLevel>
                             if (!string.IsNullOrEmpty(ob.BuyPrice) || !string.IsNullOrEmpty(ob.SellPrice))
                             {
                                 SharedDict[instId] = ob;
-                                Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] {instId} 买{levels.GetValueOrDefault("buy", 0)}: {ob.BuyPrice} × {ob.BuySize} 卖{levels.GetValueOrDefault("sell", 0)}: {ob.SellPrice} × {ob.SellSize}");
+                                Log($"[{DateTime.Now:HH:mm:ss}] {instId} 买{levels.GetValueOrDefault("buy", 0)}: {ob.BuyPrice} × {ob.BuySize} 卖{levels.GetValueOrDefault("sell", 0)}: {ob.SellPrice} × {ob.SellSize}");
                             }
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"解析消息异常: {ex.Message}");
+                    Log($"解析消息异常: {ex.Message}");
                 }
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"WebSocket错误: {ex.Message}");
+            Log($"WebSocket错误: {ex.Message}");
         }
     }
 }
 
-/// <summary>
-/// 存储盘口指定买卖档行情
-/// </summary>
 public class OrderBookLevel
 {
     public string? BuyPrice { get; set; }

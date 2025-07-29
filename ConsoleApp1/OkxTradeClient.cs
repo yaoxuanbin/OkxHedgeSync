@@ -4,11 +4,13 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using System.Net;
+using System.IO;
 
 /// <summary>
 /// OKX交易客户端，支持模拟盘和实盘下单（现货/合约）
 /// </summary>
-public class OkxTradeClient : ApiBase
+public class OkxTradeClient : BaseAPI
 {
     public OkxTradeClient(string apiKey, string secretKey, string passphrase, bool isSimulated = false, string? proxyUrl = null)
         : base(apiKey, secretKey, passphrase, isSimulated, proxyUrl) { }
@@ -111,5 +113,64 @@ public class OkxTradeClient : ApiBase
         using var hmac = new HMACSHA256(key);
         var hash = hmac.ComputeHash(msg);
         return Convert.ToBase64String(hash);
+    }
+}
+
+public abstract class BaseAPI
+{
+    protected readonly string ApiKey;
+    protected readonly string SecretKey;
+    protected readonly string Passphrase;
+    protected readonly HttpClient HttpClient;
+    protected readonly string BaseUrl = "https://www.okx.com";
+    protected bool IsSimulated { get; }
+
+    // 日志相关
+    protected bool EnableLog { get; }
+    protected bool LogToFile { get; }
+    protected string? LogFilePath { get; }
+
+    protected BaseAPI(
+        string apiKey,
+        string secretKey,
+        string passphrase,
+        bool isSimulated = false,
+        string? proxyUrl = null,
+        bool enableLog = false,
+        bool logToFile = false,
+        string? logFilePath = null)
+    {
+        ApiKey = apiKey;
+        SecretKey = secretKey;
+        Passphrase = passphrase;
+        IsSimulated = isSimulated;
+        EnableLog = enableLog;
+        LogToFile = logToFile;
+        LogFilePath = logFilePath;
+
+        var handler = new HttpClientHandler();
+        if (!string.IsNullOrEmpty(proxyUrl))
+        {
+            handler.Proxy = new WebProxy(proxyUrl);
+            handler.UseProxy = true;
+        }
+        HttpClient = new HttpClient(handler);
+
+        if (isSimulated)
+        {
+            HttpClient.DefaultRequestHeaders.Add("x-simulated-trading", "1");
+        }
+    }
+
+    protected virtual void Log(string message)
+    {
+        if (EnableLog)
+        {
+            Console.WriteLine(message);
+            if (LogToFile && !string.IsNullOrEmpty(LogFilePath))
+            {
+                File.AppendAllText(LogFilePath, $"[{System.DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}{System.Environment.NewLine}");
+            }
+        }
     }
 }

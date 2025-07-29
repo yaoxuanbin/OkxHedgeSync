@@ -14,12 +14,29 @@ class OKxMain
 
         Console.WriteLine("启动OKX交易API（支持模拟盘/实盘，强制代理 127.0.0.1:29290）...");
 
+        // 读取每个WebSocket的日志配置
+        var spotLog = settings.WebSocketLogs.SpotPrice;
+        var positionLog = settings.WebSocketLogs.PositionAccount;
+        var orderBookLog = settings.WebSocketLogs.OrderBook;
+
         // 1. 行情WebSocket
-        var spotPriceWs = new OkxSpotPriceWebSocket(settings.IsSimulated, settings.ProxyUrl);
+        var spotPriceWs = new OkxSpotPriceWebSocket(
+            settings.IsSimulated,
+            settings.ProxyUrl,
+            spotLog.EnableLog,
+            spotLog.LogToFile,
+            spotLog.LogFilePath
+        );
         var priceTask = spotPriceWs.StartSpotPriceListenerAsync(new[] { "DOGE-USDT", "DOGE-USDT-SWAP" });
 
         // 2. 账户持仓WebSocket
-        var positionWs = new OkxPositionAccountWebSocket(settings.IsSimulated, settings.ProxyUrl);
+        var positionWs = new OkxPositionAccountWebSocket(
+            settings.IsSimulated,
+            settings.ProxyUrl,
+            positionLog.EnableLog,
+            positionLog.LogToFile,
+            positionLog.LogFilePath
+        );
         var positionTask = positionWs.CheckAccountPositionsWebSocket(
             settings.ApiKey,
             settings.SecretKey,
@@ -28,7 +45,13 @@ class OKxMain
         );
 
         // 3. 盘口WebSocket
-        var orderBookWs = new OkxOrderBookWebSocket(settings.IsSimulated, settings.ProxyUrl);
+        var orderBookWs = new OkxOrderBookWebSocket(
+            settings.IsSimulated,
+            settings.ProxyUrl,
+            orderBookLog.EnableLog,
+            orderBookLog.LogToFile,
+            orderBookLog.LogFilePath
+        );
         var orderBookTask = orderBookWs.StartOrderBookListenerAsync(
             new[] { "DOGE-USDT", "BTC-USDT" },
             new Dictionary<string, int> { { "buy", 2 }, { "sell", 2 } }
