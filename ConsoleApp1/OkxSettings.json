@@ -8,17 +8,23 @@
     "SpotPrice": {
       "EnableLog": true,
       "LogToFile": true,
-      "LogFilePath": "spot_price.log"
+      "LogFilePath": "spot_price.log",
+      "MinLevel": "Debug",
+      "MaxLevel": "Error"
     },
     "PositionAccount": {
       "EnableLog": true,
       "LogToFile": true,
-      "LogFilePath": "position_account.log"
+      "LogFilePath": "position_account.log",
+      "MinLevel": "Debug",
+      "MaxLevel": "Error"
     },
     "OrderBook": {
       "EnableLog": true,
       "LogToFile": true,
-      "LogFilePath": "order_book.log"
+      "LogFilePath": "order_book.log",
+      "MinLevel": "Debug",
+      "MaxLevel": "Error"
     }
   }
 }

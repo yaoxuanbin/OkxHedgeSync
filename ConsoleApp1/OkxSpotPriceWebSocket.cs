@@ -13,14 +13,11 @@ public class OkxSpotPriceWebSocket : BaseWebSocket<string>
         string? proxyUrl = null,
         bool enableLog = false,
         bool logToFile = false,
-        string? logFilePath = null)
-        : base(isSimulated, proxyUrl, enableLog, logToFile, logFilePath) { }
+        string? logFilePath = null,
+        LogLevel minLogLevel = LogLevel.Info,
+        LogLevel maxLogLevel = LogLevel.Error)
+        : base(isSimulated, proxyUrl, enableLog, logToFile, logFilePath, minLogLevel, maxLogLevel) { }
 
-
-    /// <summary>
-    /// 启动WebSocket监听，持续更新SharedDict字典
-    /// </summary>
-    /// <param name="instIds">币对数组</param>
     public async Task StartSpotPriceListenerAsync(string[] instIds)
     {
         var wsUri = new Uri("wss://ws.okx.com:8443/ws/v5/public");
@@ -30,7 +27,6 @@ public class OkxSpotPriceWebSocket : BaseWebSocket<string>
         {
             await cws.ConnectAsync(wsUri, CancellationToken.None);
 
-            // 订阅多个现货ticker
             var subMsg = new
             {
                 op = "subscribe",
@@ -67,7 +63,7 @@ public class OkxSpotPriceWebSocket : BaseWebSocket<string>
                                 if (!string.IsNullOrEmpty(instId) && !string.IsNullOrEmpty(last))
                                 {
                                     SharedDict[instId] = last;
-                                    Console.WriteLine($"币对: {instId}, 最新现价: {last}");
+                                    Log($"币对: {instId}, 最新现价: {last}", LogLevel.Info);
                                 }
                             }
                         }
@@ -75,13 +71,13 @@ public class OkxSpotPriceWebSocket : BaseWebSocket<string>
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"解析消息异常: {ex.Message}");
+                    Log($"解析消息异常: {ex.Message}", LogLevel.Error);
                 }
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"WebSocket错误: {ex.Message}");
+            Log($"WebSocket错误: {ex.Message}", LogLevel.Error);
         }
     }
 

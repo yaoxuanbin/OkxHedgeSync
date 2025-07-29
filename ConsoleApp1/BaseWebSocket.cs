@@ -16,28 +16,39 @@ public abstract class BaseWebSocket<TValue>
     protected bool EnableLog { get; }
     protected bool LogToFile { get; }
     protected string? LogFilePath { get; }
+    protected LogLevel MinLogLevel { get; }
+    protected LogLevel MaxLogLevel { get; }
 
-    protected BaseWebSocket(bool isSimulated = false, string? proxyUrl = null, bool enableLog = false, bool logToFile = false, string? logFilePath = null)
+    protected BaseWebSocket(
+        bool isSimulated = false,
+        string? proxyUrl = null,
+        bool enableLog = false,
+        bool logToFile = false,
+        string? logFilePath = null,
+        LogLevel minLogLevel = LogLevel.Info,
+        LogLevel maxLogLevel = LogLevel.Error)
     {
         IsSimulated = isSimulated;
         ProxyUrl = proxyUrl;
         EnableLog = enableLog;
         LogToFile = logToFile;
         LogFilePath = logFilePath;
+        MinLogLevel = minLogLevel;
+        MaxLogLevel = maxLogLevel;
     }
 
     /// <summary>
     /// 日志输出，子类可重写
     /// </summary>
-    protected virtual void Log(string message)
+    protected virtual void Log(string message, LogLevel level = LogLevel.Info)
     {
-        if (EnableLog)
+        if (!EnableLog) return;
+        if (level < MinLogLevel || level > MaxLogLevel) return;
+
+        Console.WriteLine($"[{level}] {message}");
+        if (LogToFile && !string.IsNullOrEmpty(LogFilePath))
         {
-            Console.WriteLine(message);
-            if (LogToFile && !string.IsNullOrEmpty(LogFilePath))
-            {
-                File.AppendAllText(LogFilePath, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}{Environment.NewLine}");
-            }
+            File.AppendAllText(LogFilePath, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}][{level}] {message}{Environment.NewLine}");
         }
     }
 

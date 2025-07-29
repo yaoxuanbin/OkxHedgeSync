@@ -10,13 +10,14 @@ using System.Collections.Generic;
 public class OkxPositionAccountWebSocket : BaseWebSocket<decimal>
 {
     public OkxPositionAccountWebSocket(
-            bool isSimulated = false,
-            string? proxyUrl = null,
-            bool enableLog = false,
-            bool logToFile = false,
-            string? logFilePath = null)
-            : base(isSimulated, proxyUrl, enableLog, logToFile, logFilePath) { }
-
+        bool isSimulated = false,
+        string? proxyUrl = null,
+        bool enableLog = false,
+        bool logToFile = false,
+        string? logFilePath = null,
+        LogLevel minLogLevel = LogLevel.Info,
+        LogLevel maxLogLevel = LogLevel.Error)
+        : base(isSimulated, proxyUrl, enableLog, logToFile, logFilePath, minLogLevel, maxLogLevel) { }
 
     private static string Sign(string secret, string prehash)
     {
@@ -101,7 +102,7 @@ public class OkxPositionAccountWebSocket : BaseWebSocket<decimal>
                         };
                         var subJson = JsonSerializer.Serialize(subMsg);
                         await cws.SendAsync(Encoding.UTF8.GetBytes(subJson), WebSocketMessageType.Text, true, CancellationToken.None);
-                        Console.WriteLine("已鉴权，已订阅合约持仓和资产频道。");
+                        Log("已鉴权，已订阅合约持仓和资产频道。", LogLevel.Info);
                     }
 
                     // 合约持仓数据
@@ -119,7 +120,7 @@ public class OkxPositionAccountWebSocket : BaseWebSocket<decimal>
                                     {
                                         var posSide = pos.GetProperty("posSide").GetString();
                                         var posSz = pos.GetProperty("pos").GetString();
-                                        Console.WriteLine($"合约持仓: {instId} {posSide} 数量: {posSz}");
+                                        Log($"合约持仓: {instId} {posSide} 数量: {posSz}", LogLevel.Info);
 
                                         if (decimal.TryParse(posSz, out var posValue))
                                         {
@@ -131,7 +132,7 @@ public class OkxPositionAccountWebSocket : BaseWebSocket<decimal>
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine($"解析持仓消息异常: {ex.Message}");
+                            Log($"解析持仓消息异常: {ex.Message}", LogLevel.Error);
                         }
                     }
 
@@ -153,7 +154,7 @@ public class OkxPositionAccountWebSocket : BaseWebSocket<decimal>
                                             if (ccySet.Count == 0 || ccySet.Contains(ccy))
                                             {
                                                 var availBal = detail.GetProperty("availBal").GetString();
-                                                Console.WriteLine($"现货资产: {ccy} 可用余额: {availBal}");
+                                                Log($"现货资产: {ccy} 可用余额: {availBal}", LogLevel.Info);
                                             }
                                         }
                                     }
@@ -162,28 +163,28 @@ public class OkxPositionAccountWebSocket : BaseWebSocket<decimal>
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine($"解析资产消息异常: {ex.Message}");
+                            Log($"解析资产消息异常: {ex.Message}", LogLevel.Error);
                         }
                     }
 
                     // 如果收到关闭消息，退出循环
                     if (result.MessageType == WebSocketMessageType.Close)
                     {
-                        Console.WriteLine("WebSocket被服务器关闭。");
+                        Log("WebSocket被服务器关闭。", LogLevel.Warn);
                         await cws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None);
                         break;
                     }
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"WebSocket循环异常: {ex}");
+                    Log($"WebSocket循环异常: {ex}", LogLevel.Error);
                     break;
                 }
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"WebSocket错误: {ex.Message}");
+            Log($"WebSocket错误: {ex.Message}", LogLevel.Error);
         }
     }
 }

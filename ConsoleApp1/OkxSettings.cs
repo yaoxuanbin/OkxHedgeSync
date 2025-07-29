@@ -20,4 +20,6 @@ public class WebSocketLogSettings
     public bool EnableLog { get; set; }
     public bool LogToFile { get; set; }
     public string? LogFilePath { get; set; }
+    public string MinLevel { get; set; }
+    public string MaxLevel { get; set; }
 }

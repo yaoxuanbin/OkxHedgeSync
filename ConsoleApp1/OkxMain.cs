@@ -6,6 +6,9 @@ using System.Threading.Tasks;
 
 class OKxMain
 {
+    static LogLevel ParseLogLevel(string level) =>
+        Enum.TryParse<LogLevel>(level, true, out var l) ? l : LogLevel.Info;
+
     static async Task Main()
     {
         // 读取配置文件
@@ -21,37 +24,41 @@ class OKxMain
 
         // 1. 行情WebSocket
         var spotPriceWs = new OkxSpotPriceWebSocket(
-            settings.IsSimulated,
-            settings.ProxyUrl,
-            spotLog.EnableLog,
-            spotLog.LogToFile,
-            spotLog.LogFilePath
+                   settings.IsSimulated,
+                   settings.ProxyUrl,
+                   spotLog.EnableLog,
+                   spotLog.LogToFile,
+                   spotLog.LogFilePath,
+                   ParseLogLevel(spotLog.MinLevel), // 使用配置文件中的MinLevel
+                   ParseLogLevel(spotLog.MaxLevel)  // 使用配置文件中的MaxLevel
         );
         var priceTask = spotPriceWs.StartSpotPriceListenerAsync(new[] { "DOGE-USDT", "DOGE-USDT-SWAP" });
 
-        // 2. 账户持仓WebSocket
         var positionWs = new OkxPositionAccountWebSocket(
-            settings.IsSimulated,
-            settings.ProxyUrl,
-            positionLog.EnableLog,
-            positionLog.LogToFile,
-            positionLog.LogFilePath
-        );
+             settings.IsSimulated,
+             settings.ProxyUrl,
+             positionLog.EnableLog,
+             positionLog.LogToFile,
+             positionLog.LogFilePath,
+             ParseLogLevel(positionLog.MinLevel), // 使用配置文件中的MinLevel
+             ParseLogLevel(positionLog.MaxLevel)  // 使用配置文件中的MaxLevel
+         );
         var positionTask = positionWs.CheckAccountPositionsWebSocket(
-            settings.ApiKey,
-            settings.SecretKey,
-            settings.Passphrase,
-            new[] { "DOGE-USDT", "DOGE-USDT-SWAP" }
+                    settings.ApiKey,
+                    settings.SecretKey,
+                    settings.Passphrase,
+                    new[] { "DOGE-USDT", "DOGE-USDT-SWAP" }
         );
-
         // 3. 盘口WebSocket
         var orderBookWs = new OkxOrderBookWebSocket(
-            settings.IsSimulated,
-            settings.ProxyUrl,
-            orderBookLog.EnableLog,
-            orderBookLog.LogToFile,
-            orderBookLog.LogFilePath
-        );
+             settings.IsSimulated,
+             settings.ProxyUrl,
+             orderBookLog.EnableLog,
+             orderBookLog.LogToFile,
+             orderBookLog.LogFilePath,
+             ParseLogLevel(orderBookLog.MinLevel), // 使用配置文件中的MinLevel
+             ParseLogLevel(orderBookLog.MaxLevel)  // 使用配置文件中的MaxLevel
+         );
         var orderBookTask = orderBookWs.StartOrderBookListenerAsync(
             new[] { "DOGE-USDT", "BTC-USDT" },
             new Dictionary<string, int> { { "buy", 2 }, { "sell", 2 } }

@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Net.WebSockets;
 using System.Text;
@@ -11,29 +10,15 @@ using System.Threading.Tasks;
 public class OkxOrderBookWebSocket : BaseWebSocket<OrderBookLevel>
 {
     public OkxOrderBookWebSocket(
-            bool isSimulated = false,
-            string? proxyUrl = null,
-            bool enableLog = false,
-            bool logToFile = false,
-            string? logFilePath = null)
-            : base(isSimulated, proxyUrl, enableLog, logToFile, logFilePath) { }
+        bool isSimulated = false,
+        string? proxyUrl = null,
+        bool enableLog = false,
+        bool logToFile = false,
+        string? logFilePath = null,
+        LogLevel minLogLevel = LogLevel.Info,
+        LogLevel maxLogLevel = LogLevel.Error)
+        : base(isSimulated, proxyUrl, enableLog, logToFile, logFilePath, minLogLevel, maxLogLevel) { }
 
-    protected override void Log(string message)
-    {
-        if (EnableLog)
-        {
-            // 打印到控制台
-            Console.WriteLine(message);
-            // 追加到本地日志文件
-            File.AppendAllText("orderbook.log", $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}{Environment.NewLine}");
-        }
-    }
-
-    /// <summary>
-    /// 持续订阅并实时更新指定币对的盘口指定买卖档位数据
-    /// </summary>
-    /// <param name="instIds">币对数组，如 ["DOGE-USDT", "BTC-USDT"]</param>
-    /// <param name="levels">买卖档位字典，如 { "buy": 1, "sell": 2 } 表示买一卖二</param>
     public async Task StartOrderBookListenerAsync(
         string[] instIds,
         Dictionary<string, int> levels)
@@ -51,7 +36,6 @@ public class OkxOrderBookWebSocket : BaseWebSocket<OrderBookLevel>
         {
             await cws.ConnectAsync(wsUri, CancellationToken.None);
 
-            // 订阅所有instId的books5
             var subMsg = new
             {
                 op = "subscribe",
@@ -84,7 +68,6 @@ public class OkxOrderBookWebSocket : BaseWebSocket<OrderBookLevel>
 
                             var ob = new OrderBookLevel();
 
-                            // 买档
                             if (levels.TryGetValue("buy", out int buyLevel) &&
                                 book.TryGetProperty("bids", out var bidsElem) &&
                                 bidsElem.ValueKind == JsonValueKind.Array &&
@@ -94,7 +77,6 @@ public class OkxOrderBookWebSocket : BaseWebSocket<OrderBookLevel>
                                 ob.BuyPrice = bid[0].GetString();
                                 ob.BuySize = bid[1].GetString();
                             }
-                            // 卖档
                             if (levels.TryGetValue("sell", out int sellLevel) &&
                                 book.TryGetProperty("asks", out var asksElem) &&
                                 asksElem.ValueKind == JsonValueKind.Array &&
@@ -108,20 +90,20 @@ public class OkxOrderBookWebSocket : BaseWebSocket<OrderBookLevel>
                             if (!string.IsNullOrEmpty(ob.BuyPrice) || !string.IsNullOrEmpty(ob.SellPrice))
                             {
                                 SharedDict[instId] = ob;
-                                Log($"[{DateTime.Now:HH:mm:ss}] {instId} 买{levels.GetValueOrDefault("buy", 0)}: {ob.BuyPrice} × {ob.BuySize} 卖{levels.GetValueOrDefault("sell", 0)}: {ob.SellPrice} × {ob.SellSize}");
+                                Log($"[{DateTime.Now:HH:mm:ss}] {instId} 买{levels.GetValueOrDefault("buy", 0)}: {ob.BuyPrice} × {ob.BuySize} 卖{levels.GetValueOrDefault("sell", 0)}: {ob.SellPrice} × {ob.SellSize}", LogLevel.Info);
                             }
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    Log($"解析消息异常: {ex.Message}");
+                    Log($"解析消息异常: {ex.Message}", LogLevel.Error);
                 }
             }
         }
         catch (Exception ex)
         {
-            Log($"WebSocket错误: {ex.Message}");
+            Log($"WebSocket错误: {ex.Message}", LogLevel.Error);
         }
     }
 }
