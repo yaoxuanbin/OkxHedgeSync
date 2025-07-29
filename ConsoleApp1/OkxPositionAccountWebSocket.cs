@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Net;
 using System.Net.WebSockets;
 using System.Security.Cryptography;
 using System.Text;
@@ -7,15 +6,13 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
-using System.Collections.Concurrent; 
 
-class OkxPositionAccountWebSocket
+public class OkxPositionAccountWebSocket : WebSocketBase<decimal>
 {
-    // 公开静态字典用于存储持仓数据
-    public static ConcurrentDictionary<string, decimal> PositionDict { get; } = new();
+    public OkxPositionAccountWebSocket(bool isSimulated = false, string? proxyUrl = null)
+        : base(isSimulated, proxyUrl) { }
 
-    // 生成OKX签名
-    static string Sign(string secret, string prehash)
+    private static string Sign(string secret, string prehash)
     {
         var key = Encoding.UTF8.GetBytes(secret);
         var msg = Encoding.UTF8.GetBytes(prehash);
@@ -24,18 +21,17 @@ class OkxPositionAccountWebSocket
         return Convert.ToBase64String(hash);
     }
 
-    public static async Task CheckAccountPositionsWebSocket(
+    /// <summary>
+    /// 启动账户和持仓WebSocket监听，自动鉴权并持续更新SharedDict
+    /// </summary>
+    public async Task CheckAccountPositionsWebSocket(
         string apiKey,
         string secretKey,
         string passphrase,
-        IEnumerable<string> instIds,
-        string proxyUrl = "http://127.0.0.1:29290")
+        IEnumerable<string> instIds)
     {
         var wsUri = new Uri("wss://wspap.okx.com:8443/ws/v5/private?brokerId=9999");
-        var proxy = new WebProxy(proxyUrl) { BypassProxyOnLocal = false };
-        var cws = new ClientWebSocket();
-        cws.Options.Proxy = proxy;
-        cws.Options.RemoteCertificateValidationCallback = (_, _, _, _) => true;
+        using var cws = CreateWebSocket();
 
         // 用于筛选合约/现货币对
         var instIdSet = new HashSet<string>(instIds ?? Array.Empty<string>(), StringComparer.OrdinalIgnoreCase);
@@ -52,7 +48,7 @@ class OkxPositionAccountWebSocket
             await cws.ConnectAsync(wsUri, CancellationToken.None);
 
             // 1. 鉴权
-            var ts = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(); // 秒级
+            var ts = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
             var signStr = ts + "GET" + "/users/self/verify";
             var sign = Sign(secretKey, signStr);
 
@@ -66,7 +62,7 @@ class OkxPositionAccountWebSocket
                         { "apiKey", apiKey },
                         { "passphrase", passphrase },
                         { "timestamp", ts },
-                        { "sign", sign } 
+                        { "sign", sign }
                     }
                 }
             };
@@ -102,7 +98,7 @@ class OkxPositionAccountWebSocket
                         Console.WriteLine("已鉴权，已订阅合约持仓和资产频道。");
                     }
 
-                    // 打印合约持仓数据
+                    // 合约持仓数据
                     if (msg.Contains("\"channel\":\"positions\""))
                     {
                         try
@@ -119,11 +115,9 @@ class OkxPositionAccountWebSocket
                                         var posSz = pos.GetProperty("pos").GetString();
                                         Console.WriteLine($"合约持仓: {instId} {posSide} 数量: {posSz}");
 
-// 存储到字典
                                         if (decimal.TryParse(posSz, out var posValue))
                                         {
-                                            // key可以自定义，比如用instId+posSide区分多空
-                                            PositionDict[$"{instId}_{posSide}"] = posValue;
+                                            SharedDict[$"{instId}_{posSide}"] = posValue;
                                         }
                                     }
                                 }
@@ -135,7 +129,7 @@ class OkxPositionAccountWebSocket
                         }
                     }
 
-                    // 打印现货资产数据
+                    // 现货资产数据
                     if (msg.Contains("\"channel\":\"account\""))
                     {
                         try

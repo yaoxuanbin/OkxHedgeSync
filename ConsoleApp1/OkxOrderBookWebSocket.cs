@@ -1,8 +1,6 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
@@ -12,28 +10,19 @@ using System.Threading.Tasks;
 /// <summary>
 /// 通过WebSocket订阅OKX盘口五档数据，支持指定买卖档位、模拟盘参数、多个instId，并持续更新到公共字典
 /// </summary>
-public class OkxOrderBookWebSocket
+public class OkxOrderBookWebSocket : WebSocketBase<OrderBookLevel>
 {
-    /// <summary>
-    /// 公共字典，存储每个instId的最新买卖档行情
-    /// Key: instId
-    /// Value: OrderBookLevel { BuyPrice, BuySize, SellPrice, SellSize }
-    /// </summary>
-    public static ConcurrentDictionary<string, OrderBookLevel> OrderBookLevels { get; } = new();
+    public OkxOrderBookWebSocket(bool isSimulated = false, string? proxyUrl = null)
+        : base(isSimulated, proxyUrl) { }
 
     /// <summary>
     /// 持续订阅并实时更新指定币对的盘口指定买卖档位数据
     /// </summary>
     /// <param name="instIds">币对数组，如 ["DOGE-USDT", "BTC-USDT"]</param>
     /// <param name="levels">买卖档位字典，如 { "buy": 1, "sell": 2 } 表示买一卖二</param>
-    /// <param name="isSimulated">是否模拟盘</param>
-    /// <param name="proxyUrl">可选代理地址</param>
-    /// <returns></returns>
-    public static async Task StartOrderBookListenerAsync(
+    public async Task StartOrderBookListenerAsync(
         string[] instIds,
-        Dictionary<string, int> levels,
-        bool isSimulated = false,
-        string? proxyUrl = null)
+        Dictionary<string, int> levels)
     {
         foreach (var level in levels.Values)
         {
@@ -42,19 +31,7 @@ public class OkxOrderBookWebSocket
         }
 
         var wsUri = new Uri("wss://ws.okx.com:8443/ws/v5/public");
-        var cws = new ClientWebSocket();
-
-        if (!string.IsNullOrEmpty(proxyUrl))
-        {
-            cws.Options.Proxy = new WebProxy(proxyUrl);
-        }
-        cws.Options.RemoteCertificateValidationCallback = (_, _, _, _) => true;
-
-        // 模拟盘Header
-        if (isSimulated)
-        {
-            cws.Options.SetRequestHeader("x-simulated-trading", "1");
-        }
+        using var cws = CreateWebSocket();
 
         try
         {
@@ -116,8 +93,7 @@ public class OkxOrderBookWebSocket
 
                             if (!string.IsNullOrEmpty(ob.BuyPrice) || !string.IsNullOrEmpty(ob.SellPrice))
                             {
-                                OrderBookLevels[instId] = ob;
-                                // 可选：输出最新行情
+                                SharedDict[instId] = ob;
                                 Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] {instId} 买{levels.GetValueOrDefault("buy", 0)}: {ob.BuyPrice} × {ob.BuySize} 卖{levels.GetValueOrDefault("sell", 0)}: {ob.SellPrice} × {ob.SellSize}");
                             }
                         }

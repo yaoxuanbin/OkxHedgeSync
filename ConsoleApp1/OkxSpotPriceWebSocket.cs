@@ -1,38 +1,24 @@
 using System;
-using System.Collections.Concurrent;
-using System.Net;
+using System.Linq;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Linq;
 
-public static class OkxSpotPriceWebSocket
+public class OkxSpotPriceWebSocket : WebSocketBase<string>
 {
-    /// <summary>
-    /// 公共字典，存储每个instId的最新现价（last）
-    /// </summary>
-    public static ConcurrentDictionary<string, string> LastPrices { get; } = new();
+    public OkxSpotPriceWebSocket(bool isSimulated = false, string? proxyUrl = null)
+        : base(isSimulated, proxyUrl) { }
 
     /// <summary>
-    /// 启动WebSocket监听，持续更新LastPrices字典
+    /// 启动WebSocket监听，持续更新SharedDict字典
     /// </summary>
     /// <param name="instIds">币对数组</param>
-    /// <param name="proxyUrl">可选代理地址，默认127.0.0.1:29290</param>
-    /// <returns></returns>
-    public static async Task StartSpotPriceListenerAsync(string[] instIds, string? proxyUrl = "http://127.0.0.1:29290")
+    public async Task StartSpotPriceListenerAsync(string[] instIds)
     {
-        var proxy = new WebProxy(proxyUrl)
-        {
-            BypassProxyOnLocal = false
-        };
-
         var wsUri = new Uri("wss://ws.okx.com:8443/ws/v5/public");
-        var cws = new ClientWebSocket();
-
-        cws.Options.Proxy = proxy;
-        cws.Options.RemoteCertificateValidationCallback = (_, _, _, _) => true;
+        using var cws = CreateWebSocket();
 
         try
         {
@@ -74,7 +60,7 @@ public static class OkxSpotPriceWebSocket
                                 var last = lastElem.GetString();
                                 if (!string.IsNullOrEmpty(instId) && !string.IsNullOrEmpty(last))
                                 {
-                                    LastPrices[instId] = last;
+                                    SharedDict[instId] = last;
                                     Console.WriteLine($"币对: {instId}, 最新现价: {last}");
                                 }
                             }
@@ -98,7 +84,7 @@ public static class OkxSpotPriceWebSocket
     /// </summary>
     public static string? GetLastPrice(string instId)
     {
-        LastPrices.TryGetValue(instId, out var price);
+        SharedDict.TryGetValue(instId, out var price);
         return price;
     }
 }
