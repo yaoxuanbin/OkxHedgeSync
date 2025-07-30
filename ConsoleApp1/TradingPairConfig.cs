@@ -21,7 +21,7 @@ public class OkxMainTrader
     private readonly Action<string, LogLevel> _log;
     private readonly Action<string> _tradeRecordLog;
 
-    // 新增：每个币对的开仓/平仓冻结时间戳
+    // 每个币对的开仓/平仓冻结时间戳
     private readonly Dictionary<string, DateTime> _openFreezeUntil = new();
     private readonly Dictionary<string, DateTime> _closeFreezeUntil = new();
     private readonly TimeSpan _freezeDuration = TimeSpan.FromSeconds(5);

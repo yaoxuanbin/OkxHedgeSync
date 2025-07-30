@@ -54,6 +54,7 @@ public class OkxTradeClient : BaseAPI, ITradeClient
             tdMode = "cash",
             side = "buy",
             ordType = "market",
+            tgtCcy = "base_ccy",
             sz = size.ToString()
         };
         return await SendOrderAsync(order);
@@ -70,6 +71,7 @@ public class OkxTradeClient : BaseAPI, ITradeClient
             tdMode = "cash",
             side = "sell",
             ordType = "market",
+            tgtCcy = "base_ccy",
             sz = size.ToString()
         };
         return await SendOrderAsync(order);
