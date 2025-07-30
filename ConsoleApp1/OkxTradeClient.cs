@@ -37,6 +37,12 @@ public class OkxTradeClient : BaseAPI, ITradeClient
         await PlaceSwapMarketSellOrderAsync(instId, (decimal)quantity, "short");
     }
 
+    // 买入平空
+    public async Task CloseShortSwapAsync(string instId, double quantity, double price)
+    {
+        await PlaceSwapMarketBuyOrderAsync(instId, (decimal)quantity, "short");
+    }
+
     /// <summary>
     /// 下现货市价买单
     /// </summary>
@@ -184,14 +190,14 @@ public abstract class BaseAPI
         }
     }
 
-    protected virtual void Log(string message)
+    public virtual void Log(string message, LogLevel level = LogLevel.Info)
     {
         if (EnableLog)
         {
-            Console.WriteLine(message);
+            Console.WriteLine($"[{level}] {message}");
             if (LogToFile && !string.IsNullOrEmpty(LogFilePath))
             {
-                File.AppendAllText(LogFilePath, $"[{System.DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}{System.Environment.NewLine}");
+                File.AppendAllText(LogFilePath, $"[{System.DateTime.Now:yyyy-MM-dd HH:mm:ss}][{level}] {message}{System.Environment.NewLine}");
             }
         }
     }

@@ -18,12 +18,21 @@ public class OkxMainTrader
     private readonly List<TradingPairConfig> _pairs;
     private readonly ITradeClient _tradeClient;
     private readonly IPositionClient _positionClient;
+    private readonly Action<string, LogLevel> _log;
+    private readonly Action<string> _tradeRecordLog;
 
-    public OkxMainTrader(List<TradingPairConfig> pairs, ITradeClient tradeClient, IPositionClient positionClient)
+    // 新增：每个币对的开仓/平仓冻结时间戳
+    private readonly Dictionary<string, DateTime> _openFreezeUntil = new();
+    private readonly Dictionary<string, DateTime> _closeFreezeUntil = new();
+    private readonly TimeSpan _freezeDuration = TimeSpan.FromSeconds(5);
+
+    public OkxMainTrader(List<TradingPairConfig> pairs, ITradeClient tradeClient, IPositionClient positionClient, Action<string, LogLevel> log, Action<string> tradeRecordLog)
     {
         _pairs = pairs;
         _tradeClient = tradeClient;
         _positionClient = positionClient;
+        _log = log;
+        _tradeRecordLog = tradeRecordLog;
     }
 
     public async Task RunAsync()
@@ -60,25 +69,45 @@ public class OkxMainTrader
                 var spotPos = await _positionClient.GetSpotPositionAsync(pair.Spot);
                 var swapPos = await _positionClient.GetSwapPositionAsync(pair.Swap);
 
-                if (openDiff > pair.OpenThreshold && spotPos== 0 && swapPos == 0)
+                // 冻结key用币对名区分
+                string openKey = pair.Spot + "/" + pair.Swap + "/open";
+                string closeKey = pair.Spot + "/" + pair.Swap + "/close";
+
+                // 检查开仓冻结
+                if (!_openFreezeUntil.TryGetValue(openKey, out var openFreeze) || openFreeze < DateTime.UtcNow)
                 {
-                    // 买入现货（按卖N价），做空合约
-                    await _tradeClient.BuySpotAsync(pair.Spot, pair.SpotQuantity, spotSellN);
-                    await _tradeClient.SellSwapAsync(pair.Swap, pair.SwapQuantity, swapLast);
+                    if (openDiff > pair.OpenThreshold && spotPos == 0 && swapPos == 0)
+                    {
+                        await _tradeClient.BuySpotAsync(pair.Spot, pair.SpotQuantity, spotSellN);
+                        _log($"开仓 买现货 {pair.Spot} 数量:{pair.SpotQuantity} 价格:{spotSellN}", LogLevel.Info);
+                        await _tradeClient.SellSwapAsync(pair.Swap, pair.SwapQuantity, swapLast);
+                        _log($"开仓 卖合约 {pair.Swap} 数量:{pair.SwapQuantity} 价格:{swapLast}", LogLevel.Info);
+                        _openFreezeUntil[openKey] = DateTime.UtcNow + _freezeDuration;
+                        // 记录详细交易信息
+                        _tradeRecordLog($"[开仓] {pair.Spot}/{pair.Swap} openDiff={openDiff:F6} spotLast={spotLast} swapLast={swapLast} spotSellN={spotSellN} qty={pair.SpotQuantity}/{pair.SwapQuantity}");
+                    }
                 }
 
-                // 4. 平仓判断
-                if (spotPos > 0 && swapPos > 0)
+                // 检查平仓冻结
+                if (!_closeFreezeUntil.TryGetValue(closeKey, out var closeFreeze) || closeFreeze < DateTime.UtcNow)
                 {
-                    var closeDiff = (swapLast - spotLast) / spotLast;
-                    if (closeDiff < pair.CloseThreshold)
+                    if (spotPos > 1 && swapPos > 0)
                     {
-                        await _tradeClient.SellSpotAsync(pair.Spot, spotPos, spotLast);
-                        await _tradeClient.BuySwapAsync(pair.Swap, swapPos, swapLast);
+                        var closeDiff = (swapLast - spotLast) / spotLast;
+                        if (closeDiff < pair.CloseThreshold)
+                        {
+                            await _tradeClient.SellSpotAsync(pair.Spot, spotPos, spotLast);
+                            _log($"平仓 卖现货 {pair.Spot} 数量:{spotPos} 价格:{spotLast}", LogLevel.Info);
+                            await _tradeClient.CloseShortSwapAsync(pair.Swap, swapPos, swapLast); // 修改为平空仓
+                            _log($"平仓 买合约(平空) {pair.Swap} 数量:{swapPos} 价格:{swapLast}", LogLevel.Info);
+                            _closeFreezeUntil[closeKey] = DateTime.UtcNow + _freezeDuration;
+                            // 记录详细交易信息
+                            _tradeRecordLog($"[平仓] {pair.Spot}/{pair.Swap} closeDiff={closeDiff:F6} spotLast={spotLast} swapLast={swapLast} spotSellN={spotSellN} qty={spotPos}/{swapPos}");
+                        }
                     }
                 }
             }
-            await Task.Delay(1000); // 每0.1秒轮询一次
+            await Task.Delay(1000); // 每1秒轮询一次
         }
     }
 }

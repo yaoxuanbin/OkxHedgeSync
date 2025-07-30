@@ -51,7 +51,9 @@ class OKxMain
             spotLog.LogToFile,
             spotLog.LogFilePath,
             ParseLogLevel(spotLog.MinLevel),
-            ParseLogLevel(spotLog.MaxLevel)
+            ParseLogLevel(spotLog.MaxLevel),
+            settings.LogThrottle.Enable,
+            settings.LogThrottle.IntervalSeconds
         );
         var priceTask = spotPriceWs.StartSpotPriceListenerAsync(allInstIds);
 
@@ -63,7 +65,9 @@ class OKxMain
             orderBookLog.LogToFile,
             orderBookLog.LogFilePath,
             ParseLogLevel(orderBookLog.MinLevel),
-            ParseLogLevel(orderBookLog.MaxLevel)
+            ParseLogLevel(orderBookLog.MaxLevel),
+            settings.LogThrottle.Enable,
+            settings.LogThrottle.IntervalSeconds
         );
         var orderBookTask = orderBookWs.StartOrderBookListenerAsync(
             allInstIds,
@@ -98,7 +102,16 @@ class OKxMain
 
         IPositionClient positionClient = positionWs;
 
-        var trader = new OkxMainTrader(tradingPairs, tradeClient, positionClient);
+        // 交易记录日志委托
+        Action<string> tradeRecordLog = msg => {
+            if (settings.TradeRecord.Enable && settings.TradeRecord.LogToFile && !string.IsNullOrEmpty(settings.TradeRecord.LogFilePath))
+            {
+                File.AppendAllText(settings.TradeRecord.LogFilePath, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {msg}{Environment.NewLine}");
+            }
+        };
+
+        // 传递日志委托给OkxMainTrader
+        var trader = new OkxMainTrader(tradingPairs, tradeClient, positionClient, ((msg, level) => ((OkxTradeClient)tradeClient).Log(msg, level)), tradeRecordLog);
         var tradeTask = trader.RunAsync();
 
         await Task.WhenAll(priceTask, orderBookTask, positionTask, tradeTask);

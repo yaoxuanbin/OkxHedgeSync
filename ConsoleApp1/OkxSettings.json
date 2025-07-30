@@ -26,5 +26,14 @@
       "MinLevel": "Debug",
       "MaxLevel": "Error"
     }
+  },
+  "LogThrottle": {
+    "Enable": true,
+    "IntervalSeconds": 3
+  },
+  "TradeRecord": {
+    "Enable": true,
+    "LogToFile": true,
+    "LogFilePath": "trade_record.log"
   }
 }

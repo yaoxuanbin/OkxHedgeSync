@@ -9,6 +9,10 @@ using System.Threading.Tasks;
 
 public class OkxOrderBookWebSocket : BaseWebSocket<OrderBookLevel>
 {
+    private readonly bool _throttleEnable;
+    private readonly int _throttleInterval;
+    private readonly Dictionary<string, DateTime> _lastLogTime = new();
+
     public OkxOrderBookWebSocket(
         bool isSimulated = false,
         string? proxyUrl = null,
@@ -16,8 +20,14 @@ public class OkxOrderBookWebSocket : BaseWebSocket<OrderBookLevel>
         bool logToFile = false,
         string? logFilePath = null,
         LogLevel minLogLevel = LogLevel.Info,
-        LogLevel maxLogLevel = LogLevel.Error)
-        : base(isSimulated, proxyUrl, enableLog, logToFile, logFilePath, minLogLevel, maxLogLevel) { }
+        LogLevel maxLogLevel = LogLevel.Error,
+        bool throttleEnable = true,
+        int throttleInterval = 1)
+        : base(isSimulated, proxyUrl, enableLog, logToFile, logFilePath, minLogLevel, maxLogLevel)
+    {
+        _throttleEnable = throttleEnable;
+        _throttleInterval = throttleInterval;
+    }
 
     public async Task StartOrderBookListenerAsync(
         string[] instIds,
@@ -90,7 +100,8 @@ public class OkxOrderBookWebSocket : BaseWebSocket<OrderBookLevel>
                             if (!string.IsNullOrEmpty(ob.BuyPrice) || !string.IsNullOrEmpty(ob.SellPrice))
                             {
                                 SharedDict[instId] = ob;
-                                Log($"[{DateTime.Now:HH:mm:ss}] {instId} Âò{levels.GetValueOrDefault("buy", 0)}: {ob.BuyPrice} ¡Á {ob.BuySize} Âô{levels.GetValueOrDefault("sell", 0)}: {ob.SellPrice} ¡Á {ob.SellSize}", LogLevel.Info);
+                                if (!_throttleEnable || ShouldLog(instId))
+                                    Log($"[{DateTime.Now:HH:mm:ss}] {instId} Âò{levels.GetValueOrDefault("buy", 0)}: {ob.BuyPrice} ¡Á {ob.BuySize} Âô{levels.GetValueOrDefault("sell", 0)}: {ob.SellPrice} ¡Á {ob.SellSize}", LogLevel.Info);
                             }
                         }
                     }
@@ -105,6 +116,17 @@ public class OkxOrderBookWebSocket : BaseWebSocket<OrderBookLevel>
         {
             Log($"WebSocket´íÎó: {ex.Message}", LogLevel.Error);
         }
+    }
+
+    private bool ShouldLog(string instId)
+    {
+        var now = DateTime.UtcNow;
+        if (!_lastLogTime.TryGetValue(instId, out var last) || (now - last).TotalSeconds >= _throttleInterval)
+        {
+            _lastLogTime[instId] = now;
+            return true;
+        }
+        return false;
     }
 }
 

@@ -5,9 +5,14 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 
 public class OkxSpotPriceWebSocket : BaseWebSocket<string>
 {
+    private readonly bool _throttleEnable;
+    private readonly int _throttleInterval;
+    private readonly Dictionary<string, DateTime> _lastLogTime = new();
+
     public OkxSpotPriceWebSocket(
         bool isSimulated = false,
         string? proxyUrl = null,
@@ -15,8 +20,14 @@ public class OkxSpotPriceWebSocket : BaseWebSocket<string>
         bool logToFile = false,
         string? logFilePath = null,
         LogLevel minLogLevel = LogLevel.Info,
-        LogLevel maxLogLevel = LogLevel.Error)
-        : base(isSimulated, proxyUrl, enableLog, logToFile, logFilePath, minLogLevel, maxLogLevel) { }
+        LogLevel maxLogLevel = LogLevel.Error,
+        bool throttleEnable = true,
+        int throttleInterval = 1)
+        : base(isSimulated, proxyUrl, enableLog, logToFile, logFilePath, minLogLevel, maxLogLevel)
+    {
+        _throttleEnable = throttleEnable;
+        _throttleInterval = throttleInterval;
+    }
 
     public async Task StartSpotPriceListenerAsync(string[] instIds)
     {
@@ -63,7 +74,8 @@ public class OkxSpotPriceWebSocket : BaseWebSocket<string>
                                 if (!string.IsNullOrEmpty(instId) && !string.IsNullOrEmpty(last))
                                 {
                                     SharedDict[instId] = last;
-                                    Log($"币对: {instId}, 最新现价: {last}", LogLevel.Info);
+                                    if (!_throttleEnable || ShouldLog(instId))
+                                        Log($"币对: {instId}, 最新现价: {last}", LogLevel.Info);
                                 }
                             }
                         }
@@ -79,6 +91,17 @@ public class OkxSpotPriceWebSocket : BaseWebSocket<string>
         {
             Log($"WebSocket错误: {ex.Message}", LogLevel.Error);
         }
+    }
+
+    private bool ShouldLog(string instId)
+    {
+        var now = DateTime.UtcNow;
+        if (!_lastLogTime.TryGetValue(instId, out var last) || (now - last).TotalSeconds >= _throttleInterval)
+        {
+            _lastLogTime[instId] = now;
+            return true;
+        }
+        return false;
     }
 
     /// <summary>
