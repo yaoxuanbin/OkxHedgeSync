@@ -91,7 +91,7 @@ public class OkxMainTrader
                 // ºÏ≤È∆Ω≤÷∂≥Ω·
                 if (!_closeFreezeUntil.TryGetValue(closeKey, out var closeFreeze) || closeFreeze < DateTime.UtcNow)
                 {
-                    if (spotPos > 1 && swapPos > 0)
+                    if (spotPos > 0 && swapPos > 0)
                     {
                         var closeDiff = (swapLast - spotLast) / spotLast;
                         if (closeDiff < pair.CloseThreshold)

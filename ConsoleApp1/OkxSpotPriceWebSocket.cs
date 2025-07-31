@@ -31,65 +31,70 @@ public class OkxSpotPriceWebSocket : BaseWebSocket<string>
 
     public async Task StartSpotPriceListenerAsync(string[] instIds)
     {
-        var wsUri = new Uri("wss://ws.okx.com:8443/ws/v5/public");
-        using var cws = CreateWebSocket();
-
-        try
+        while (true)
         {
-            await cws.ConnectAsync(wsUri, CancellationToken.None);
-
-            var subMsg = new
+            var wsUri = new Uri("wss://ws.okx.com:8443/ws/v5/public");
+            using var cws = CreateWebSocket();
+            try
             {
-                op = "subscribe",
-                args = instIds.Select(id => new { channel = "tickers", instId = id }).ToArray()
-            };
-            var subJson = JsonSerializer.Serialize(subMsg);
-            var subBuffer = Encoding.UTF8.GetBytes(subJson);
-            await cws.SendAsync(new ArraySegment<byte>(subBuffer), WebSocketMessageType.Text, true, CancellationToken.None);
+                await cws.ConnectAsync(wsUri, CancellationToken.None);
 
-            var buffer = new byte[4096];
-            while (cws.State == WebSocketState.Open)
-            {
-                var result = await cws.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
-                if (result.MessageType == WebSocketMessageType.Close)
+                var subMsg = new
                 {
-                    await cws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None);
-                    break;
-                }
+                    op = "subscribe",
+                    args = instIds.Select(id => new { channel = "tickers", instId = id }).ToArray()
+                };
+                var subJson = JsonSerializer.Serialize(subMsg);
+                var subBuffer = Encoding.UTF8.GetBytes(subJson);
+                await cws.SendAsync(new ArraySegment<byte>(subBuffer), WebSocketMessageType.Text, true, CancellationToken.None);
 
-                var msg = Encoding.UTF8.GetString(buffer, 0, result.Count);
-
-                try
+                var buffer = new byte[4096];
+                while (cws.State == WebSocketState.Open)
                 {
-                    using var doc = JsonDocument.Parse(msg);
-                    if (doc.RootElement.TryGetProperty("data", out var dataElem) && dataElem.ValueKind == JsonValueKind.Array)
+                    var result = await cws.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+                    if (result.MessageType == WebSocketMessageType.Close)
                     {
-                        foreach (var data in dataElem.EnumerateArray())
+                        await cws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None);
+                        Log("WebSocket连接被服务器关闭，3秒后自动重连...", LogLevel.Warn);
+                        break;
+                    }
+
+                    var msg = Encoding.UTF8.GetString(buffer, 0, result.Count);
+
+                    try
+                    {
+                        using var doc = JsonDocument.Parse(msg);
+                        if (doc.RootElement.TryGetProperty("data", out var dataElem) && dataElem.ValueKind == JsonValueKind.Array)
                         {
-                            if (data.TryGetProperty("instId", out var instIdElem) &&
-                                data.TryGetProperty("last", out var lastElem))
+                            foreach (var data in dataElem.EnumerateArray())
                             {
-                                var instId = instIdElem.GetString();
-                                var last = lastElem.GetString();
-                                if (!string.IsNullOrEmpty(instId) && !string.IsNullOrEmpty(last))
+                                if (data.TryGetProperty("instId", out var instIdElem) &&
+                                    data.TryGetProperty("last", out var lastElem))
                                 {
-                                    SharedDict[instId] = last;
-                                    if (!_throttleEnable || ShouldLog(instId))
-                                        Log($"币对: {instId}, 最新现价: {last}", LogLevel.Info);
+                                    var instId = instIdElem.GetString();
+                                    var last = lastElem.GetString();
+                                    if (!string.IsNullOrEmpty(instId) && !string.IsNullOrEmpty(last))
+                                    {
+                                        SharedDict[instId] = last;
+                                        if (!_throttleEnable || ShouldLog(instId))
+                                            Log($"币对: {instId}, 最新现价: {last}", LogLevel.Info);
+                                    }
                                 }
                             }
                         }
                     }
-                }
-                catch (Exception ex)
-                {
-                    Log($"解析消息异常: {ex.Message}", LogLevel.Error);
+                    catch (Exception ex)
+                    {
+                        Log($"解析消息异常: {ex.Message}", LogLevel.Error);
+                    }
                 }
             }
-        }
-        catch (Exception ex)
-        {
-            Log($"WebSocket错误: {ex.Message}", LogLevel.Error);
+            catch (Exception ex)
+            {
+                Log($"WebSocket错误: {ex.Message}", LogLevel.Error);
+                Log("WebSocket连接异常，3秒后自动重连...", LogLevel.Warn);
+            }
+            await Task.Delay(3000); // 3秒后重连
         }
     }
 

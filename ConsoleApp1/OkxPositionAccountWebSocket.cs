@@ -37,159 +37,166 @@ public class OkxPositionAccountWebSocket : BaseWebSocket<decimal>, IPositionClie
         string passphrase,
         IEnumerable<string> instIds)
     {
-        var wsUri = new Uri("wss://wspap.okx.com:8443/ws/v5/private?brokerId=9999");
-        using var cws = CreateWebSocket();
-
-        // 用于筛选合约/现货币对
-        var instIdSet = new HashSet<string>(instIds ?? Array.Empty<string>(), StringComparer.OrdinalIgnoreCase);
-        // 用于筛选现货币种
-        var ccySet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var id in instIdSet)
+        while (true)
         {
-            var ccy = id.Split('-')[0];
-            ccySet.Add(ccy);
-        }
+            var wsUri = new Uri("wss://wspap.okx.com:8443/ws/v5/private?brokerId=9999");
+            using var cws = CreateWebSocket();
 
-        try
-        {
-            await cws.ConnectAsync(wsUri, CancellationToken.None);
-
-            // 1. 鉴权
-            var ts = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
-            var signStr = ts + "GET" + "/users/self/verify";
-            var sign = Sign(secretKey, signStr);
-
-            var loginMsg = new
+            // 用于筛选合约/现货币对
+            var instIdSet = new HashSet<string>(instIds ?? Array.Empty<string>(), StringComparer.OrdinalIgnoreCase);
+            // 用于筛选现货币种
+            var ccySet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var id in instIdSet)
             {
-                op = "login",
-                args = new[]
-                {
-                    new Dictionary<string, object>
-                    {
-                        { "apiKey", apiKey },
-                        { "passphrase", passphrase },
-                        { "timestamp", ts },
-                        { "sign", sign }
-                    }
-                }
-            };
-            var loginJson = JsonSerializer.Serialize(loginMsg);
-            await cws.SendAsync(Encoding.UTF8.GetBytes(loginJson), WebSocketMessageType.Text, true, CancellationToken.None);
+                var ccy = id.Split('-')[0];
+                ccySet.Add(ccy);
+            }
 
-            var buffer = new byte[4096];
-            bool authed = false;
-
-            while (cws.State == WebSocketState.Open)
+            try
             {
-                try
+                await cws.ConnectAsync(wsUri, CancellationToken.None);
+
+                // 1. 鉴权
+                var ts = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
+                var signStr = ts + "GET" + "/users/self/verify";
+                var sign = Sign(secretKey, signStr);
+
+                var loginMsg = new
                 {
-                    var result = await cws.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
-                    var msg = Encoding.UTF8.GetString(buffer, 0, result.Count);
-
-                    // 登录成功后订阅频道
-                    if (!authed && msg.Contains("\"event\":\"login\"") && msg.Contains("\"code\":\"0\""))
+                    op = "login",
+                    args = new[]
                     {
-                        authed = true;
-                        var subMsg = new
+                        new Dictionary<string, object>
                         {
-                            op = "subscribe",
-                            args = new object[]
-                            {
-                                new { channel = "positions", instType = "SWAP" },
-                                new { channel = "positions", instType = "SPOT" },
-                                new { channel = "account" }
-                            }
-                        };
-                        var subJson = JsonSerializer.Serialize(subMsg);
-                        await cws.SendAsync(Encoding.UTF8.GetBytes(subJson), WebSocketMessageType.Text, true, CancellationToken.None);
-                        Log("已鉴权，已订阅合约持仓和资产频道。", LogLevel.Info);
+                            { "apiKey", apiKey },
+                            { "passphrase", passphrase },
+                            { "timestamp", ts },
+                            { "sign", sign }
+                        }
                     }
+                };
+                var loginJson = JsonSerializer.Serialize(loginMsg);
+                await cws.SendAsync(Encoding.UTF8.GetBytes(loginJson), WebSocketMessageType.Text, true, CancellationToken.None);
 
-                    // 合约持仓数据
-                    if (msg.Contains("\"channel\":\"positions\""))
+                var buffer = new byte[4096];
+                bool authed = false;
+
+                while (cws.State == WebSocketState.Open)
+                {
+                    try
                     {
-                        try
+                        var result = await cws.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+                        var msg = Encoding.UTF8.GetString(buffer, 0, result.Count);
+
+                        // 登录成功后订阅频道
+                        if (!authed && msg.Contains("\"event\":\"login\"") && msg.Contains("\"code\":\"0\""))
                         {
-                            using var doc = JsonDocument.Parse(msg);
-                            if (doc.RootElement.TryGetProperty("data", out var dataElem) && dataElem.ValueKind == JsonValueKind.Array)
+                            authed = true;
+                            var subMsg = new
                             {
-                                foreach (var pos in dataElem.EnumerateArray())
+                                op = "subscribe",
+                                args = new object[]
                                 {
-                                    var instId = pos.GetProperty("instId").GetString();
-                                    if (instIdSet.Count == 0 || instIdSet.Contains(instId))
-                                    {
-                                        var posSide = pos.GetProperty("posSide").GetString();
-                                        var posSz = pos.GetProperty("pos").GetString();
-                                        Log($"合约持仓: {instId} {posSide} 数量: {posSz}", LogLevel.Info);
+                                    new { channel = "positions", instType = "SWAP" },
+                                    new { channel = "positions", instType = "SPOT" },
+                                    new { channel = "account" }
+                                }
+                            };
+                            var subJson = JsonSerializer.Serialize(subMsg);
+                            await cws.SendAsync(Encoding.UTF8.GetBytes(subJson), WebSocketMessageType.Text, true, CancellationToken.None);
+                            Log("已鉴权，已订阅合约持仓和资产频道。", LogLevel.Info);
+                        }
 
-                                        if (decimal.TryParse(posSz, out var posValue))
+                        // 合约持仓数据
+                        if (msg.Contains("\"channel\":\"positions\""))
+                        {
+                            try
+                            {
+                                using var doc = JsonDocument.Parse(msg);
+                                if (doc.RootElement.TryGetProperty("data", out var dataElem) && dataElem.ValueKind == JsonValueKind.Array)
+                                {
+                                    foreach (var pos in dataElem.EnumerateArray())
+                                    {
+                                        var instId = pos.GetProperty("instId").GetString();
+                                        if (instIdSet.Count == 0 || instIdSet.Contains(instId))
                                         {
-                                            // 存储格式: "BTC-USDT-SWAP_long" 或 "BTC-USDT-SWAP_short"
-                                            SharedDict[$"{instId}_{posSide?.ToLower()}"] = posValue;
+                                            var posSide = pos.GetProperty("posSide").GetString();
+                                            var posSz = pos.GetProperty("pos").GetString();
+                                            Log($"合约持仓: {instId} {posSide} 数量: {posSz}", LogLevel.Info);
+
+                                            if (decimal.TryParse(posSz, out var posValue))
+                                            {
+                                                // 存储格式: "BTC-USDT-SWAP_long" 或 "BTC-USDT-SWAP_short"
+                                                SharedDict[$"{instId}_{posSide?.ToLower()}"] = posValue;
+                                            }
                                         }
                                     }
                                 }
                             }
-                        }
-                        catch (Exception ex)
-                        {
-                            Log($"解析持仓消息异常: {ex.Message}", LogLevel.Error);
-                        }
-                    }
-
-                    // 现货资产数据
-                    if (msg.Contains("\"channel\":\"account\""))
-                    {
-                        try
-                        {
-                            using var doc = JsonDocument.Parse(msg);
-                            if (doc.RootElement.TryGetProperty("data", out var dataElem) && dataElem.ValueKind == JsonValueKind.Array)
+                            catch (Exception ex)
                             {
-                                foreach (var acc in dataElem.EnumerateArray())
+                                Log($"解析持仓消息异常: {ex.Message}", LogLevel.Error);
+                            }
+                        }
+
+                        // 现货资产数据
+                        if (msg.Contains("\"channel\":\"account\""))
+                        {
+                            try
+                            {
+                                using var doc = JsonDocument.Parse(msg);
+                                if (doc.RootElement.TryGetProperty("data", out var dataElem) && dataElem.ValueKind == JsonValueKind.Array)
                                 {
-                                    if (acc.TryGetProperty("details", out var detailsElem) && detailsElem.ValueKind == JsonValueKind.Array)
+                                    foreach (var acc in dataElem.EnumerateArray())
                                     {
-                                        foreach (var detail in detailsElem.EnumerateArray())
+                                        if (acc.TryGetProperty("details", out var detailsElem) && detailsElem.ValueKind == JsonValueKind.Array)
                                         {
-                                            var ccy = detail.GetProperty("ccy").GetString();
-                                            if (ccySet.Count == 0 || ccySet.Contains(ccy))
+                                            foreach (var detail in detailsElem.EnumerateArray())
                                             {
-                                                var availBal = detail.GetProperty("availBal").GetString();
-                                                Log($"现货资产: {ccy} 可用余额: {availBal}", LogLevel.Info);
-                                                if (decimal.TryParse(availBal, out var balValue))
+                                                var ccy = detail.GetProperty("ccy").GetString();
+                                                if (ccySet.Count == 0 || ccySet.Contains(ccy))
                                                 {
-                                                    SharedDict[ccy] = balValue;
+                                                    var availBal = detail.GetProperty("availBal").GetString();
+                                                    Log($"现货资产: {ccy} 可用余额: {availBal}", LogLevel.Info);
+                                                    if (decimal.TryParse(availBal, out var balValue))
+                                                    {
+                                                        SharedDict[ccy] = balValue;
+                                                    }
                                                 }
                                             }
                                         }
                                     }
                                 }
                             }
+                            catch (Exception ex)
+                            {
+                                Log($"解析资产消息异常: {ex.Message}", LogLevel.Error);
+                            }
                         }
-                        catch (Exception ex)
+
+                        // 如果收到关闭消息，退出循环
+                        if (result.MessageType == WebSocketMessageType.Close)
                         {
-                            Log($"解析资产消息异常: {ex.Message}", LogLevel.Error);
+                            Log("WebSocket被服务器关闭。", LogLevel.Warn);
+                            await cws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None);
+                            Log("WebSocket断开，3秒后自动重连...", LogLevel.Warn);
+                            break;
                         }
                     }
-
-                    // 如果收到关闭消息，退出循环
-                    if (result.MessageType == WebSocketMessageType.Close)
+                    catch (Exception ex)
                     {
-                        Log("WebSocket被服务器关闭。", LogLevel.Warn);
-                        await cws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None);
+                        Log($"WebSocket循环异常: {ex}", LogLevel.Error);
+                        Log("WebSocket断开，3秒后自动重连...", LogLevel.Warn);
                         break;
                     }
                 }
-                catch (Exception ex)
-                {
-                    Log($"WebSocket循环异常: {ex}", LogLevel.Error);
-                    break;
-                }
             }
-        }
-        catch (Exception ex)
-        {
-            Log($"WebSocket错误: {ex.Message}", LogLevel.Error);
+            catch (Exception ex)
+            {
+                Log($"WebSocket错误: {ex.Message}", LogLevel.Error);
+                Log("WebSocket连接异常，3秒后自动重连...", LogLevel.Warn);
+            }
+            await Task.Delay(3000); // 3秒后重连
         }
     }
 
